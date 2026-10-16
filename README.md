@@ -1,4 +1,4 @@
-# EdgeBetter
+# Edge Better
 
 在新标签页打开书签 —— 复刻并增强 [Open bookmarks in a new tab](https://microsoftedge.microsoft.com/addons/detail/%E5%9C%A8%E6%96%B0%E6%A0%87%E7%AD%BE%E9%A1%B5%E4%B8%AD%E6%89%93%E5%BC%80%E4%B9%A6%E7%AD%BE/bafanlmplgllnpdbemmppkbggiooifep)（Vitaliy Potapov，2.1 万+ 用户，微软精选认证）。
 
@@ -27,7 +27,7 @@
    `https://example.com/a` → `https://newtab@example.com/a`
 2. `webNavigation.onBeforeNavigate` 捕获主框架上的 `^https?://newtab@` 导航，直接决定落点：
    - 当前是空白新标签页（或该标签本就是为这次书签导航新建的——中键 / Ctrl 点击）→ `tabs.update` 直接覆盖当前页
-   - 否则 → `tabs.create` 新建标签打开书签；**同时**把当前标签导航到「原 URL + `#edgebetter`」，
+   - 否则 → `tabs.create` 新建标签打开书签；**同时**把当前标签导航到「原 URL + `#edge-better`」，
      与原页只差 fragment = 同文档导航，**当前页不卸载、不刷新、DOM 状态完整保留**
 
 关键细节（都踩过坑，改动前必读）：
@@ -51,7 +51,7 @@ MV3 的 Service Worker 空闲 30s 就被回收（官方文档：Chrome 118 起�
 | 防线 | 做法 | 效果 |
 | --- | --- | --- |
 | ① 保活 SW | `chrome.alarms` 30s 周期事件重置空闲计时器 | 大多数点击走热路径，连"闪一下"都没有 |
-| ② 热路径取消 | 零 await 立刻 `tabs.update` 到「原 URL + `#edgebetter`」（同文档导航） | 文档不卸载，DOM / 滚动状态完整保留 |
+| ② 热路径取消 | 零 await 立刻 `tabs.update` 到「原 URL + `#edge-better`」（同文档导航） | 文档不卸载，DOM / 滚动状态完整保留 |
 | ③ 冷路径回退 | 先开新标签，再等导航落定；若已提交就 `tabs.goBack()` | 原页在 bfcache 里被冻结-恢复：**不是重载**，状态无损 |
 
 第 ③ 条是关键补救：原页被书签页顶掉后**绝不能**用 `tabs.update` 导航回原 URL ——
@@ -88,7 +88,7 @@ Edge 点星标会**立即**在默认文件夹建好书签并弹出收藏气泡�
 
 ## 与原版已知问题的对照
 
-| 原版已知问题 | EdgeBetter |
+| 原版已知问题 | Edge Better |
 | --- | --- |
 | 部分书签图标短暂丢失，首次打开后恢复 | 机制固有（URL 变化导致 favicon 缓存失效），保持同样行为 |
 | 部分网站弹"要离开此站点吗" | 机制固有（离开带 beforeunload 的页面不可避免），点击"离开"后原页面仍保留 |
@@ -118,7 +118,7 @@ Edge 点星标会**立即**在默认文件夹建好书签并弹出收藏气泡�
 1. Edge 地址栏输入 `edge://extensions`
 2. 打开左下角"开发人员模式"
 3. 点"加载解压缩的扩展"，选择本目录（`E:\project\EdgeBetter`）
-4. 工具栏出现 EdgeBetter 图标。**首次安装默认开启**（会改写全部书签，弹窗可一键关闭并还原）
+4. 工具栏出现 Edge Better 图标。**首次安装默认开启**（会改写全部书签，弹窗可一键关闭并还原）
 
 ## 使用
 

@@ -1,5 +1,5 @@
 /**
- * EdgeBetter —— 「收藏到非默认文件夹却仍落在默认文件夹」UI 探针（一次性验证脚本）
+ * Edge Better —— 「收藏到非默认文件夹却仍落在默认文件夹」UI 探针（一次性验证脚本）
  *
  * 这条 bug 只存在于真实浏览器的收藏气泡（favorites bubble）交互里，
  * 纯 API 复现不出来，必须点真窗口。依赖 tools/capture-window.py（截图）
@@ -145,7 +145,7 @@ async function main() {
   });
   await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edgebetter-folder-'));
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-better-folder-'));
   console.log(`profile: ${profileDir}  MODE=${MODE}`);
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: EDGE,

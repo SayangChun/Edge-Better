@@ -1,5 +1,5 @@
 /**
- * EdgeBetter —— MV3 Service Worker
+ * Edge Better —— MV3 Service Worker
  *
  * 职责：
  *  1. 书签 URL 加/去 newtab@ 前缀（开关，全部可逆）
@@ -16,7 +16,7 @@
  *    而 tabs.create 要走完"创建标签页"整条流程（几十到几百毫秒）。先 await
  *    tabs.create 的话，等轮到取消时导航已提交，取消就退化成"导航回原页"
  *    ——那就是用户看到的整页刷新。
- *  - 改为在请求发出后、提交前取消导航：当前标签被导航到 pageX#edgebetter
+ *  - 改为在请求发出后、提交前取消导航：当前标签被导航到 pageX#edge-better
  *    （同文档），原页从未离开。若竞态仍失败（SW 刚被唤醒、事件送达太晚），
  *    tabs.update 会把标签导航回原页——退化为一次重载，与旧版行为一致。
  *
@@ -36,14 +36,14 @@ import { findPendingByUrl } from './lib/pending.js';
 
 const NAV_RE = /^https?:\/\/newtab@/i;
 /** 取消 pending 导航用的固定 fragment（同文档导航的差异点） */
-const RESTORE_FRAGMENT = '#edgebetter';
+const RESTORE_FRAGMENT = '#edge-better';
 /** 待处理书签的兜底超时：超过它一律加前缀（此时气泡不可能还开着） */
 const PENDING_MAX_MS = 30_000;
 const PENDING_KEY = 'pendingPrefixes';
 /** tabId -> URL 的持久化副本（SW 被回收重启后 tabUrls 会丢，冷启动就认不出原页） */
 const TABURLS_KEY = 'tabUrls';
 /** 保活闹钟名（30s 是 chrome.alarms 允许的最小周期，正好压住 SW 的 30s 空闲回收） */
-const KEEPALIVE_ALARM = 'edgebetter-keepalive';
+const KEEPALIVE_ALARM = 'edge-better-keepalive';
 
 /** tabId -> 最近一次提交的 URL（tabs.onUpdated 维护） */
 const tabUrls = new Map();
@@ -87,7 +87,7 @@ async function syncKeepAlive() {
       await chrome.alarms.clear(KEEPALIVE_ALARM);
     }
   } catch (e) {
-    console.warn('[EdgeBetter] 保活闹钟设置失败', e);
+    console.warn('[Edge Better] 保活闹钟设置失败', e);
   }
 }
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -133,7 +133,7 @@ async function applyBookmarkMode(mode) {
     try {
       await chrome.bookmarks.update(op.id, { url: op.to });
     } catch (e) {
-      console.warn('[EdgeBetter] 书签更新失败', op.id, e);
+      console.warn('[Edge Better] 书签更新失败', op.id, e);
     }
   }
   return ops.length;
@@ -216,7 +216,7 @@ async function applyPending(id) {
   try {
     await chrome.bookmarks.update(id, { url: target });
   } catch (e) {
-    console.warn('[EdgeBetter] 书签更新失败', id, e);
+    console.warn('[Edge Better] 书签更新失败', id, e);
   }
 }
 
@@ -379,7 +379,7 @@ async function restoreByGoingBack(tabId) {
     await chrome.scripting.executeScript({ target: { tabId }, func: () => history.back() });
     return true;
   } catch (e) {
-    console.warn('[EdgeBetter] 回退恢复原页失败', e);
+    console.warn('[Edge Better] 回退恢复原页失败', e);
     return false;
   }
 }
@@ -498,7 +498,7 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
     // 用户在待处理窗口里点了这个新书签：此刻气泡必然已关，可以安全加前缀
     if (pendingId) applyPending(pendingId);
   } catch (e) {
-    console.warn('[EdgeBetter] 打开书签失败', e);
+    console.warn('[Edge Better] 打开书签失败', e);
   }
 });
 

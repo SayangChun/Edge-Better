@@ -1,7 +1,7 @@
 /**
- * EdgeBetter —— 星标 × fragment 取消流程回归探针（一次性验证脚本）
+ * Edge Better —— 星标 × fragment 取消流程回归探针（一次性验证脚本）
  *
- * 目的：验证 v0.2 的 fragment 取消机制（当前页 → pageX#edgebetter → replaceState
+ * 目的：验证 v0.2 的 fragment 取消机制（当前页 → pageX#edge-better → replaceState
  * 清理）不会影响地址栏星标对已收藏页面的识别。
  *
  * 流程：
@@ -42,7 +42,7 @@ async function main() {
   });
   await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edgebetter-starfrag-'));
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-better-starfrag-'));
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: EDGE,
     headless: false,
@@ -126,7 +126,7 @@ async function main() {
     }));
     console.log('原页状态:', JSON.stringify(st));
     console.log('fragment 取消路径确认（标记保留）:', st.marker === 'marker-X');
-    console.log('地址栏 URL 已清理（无 #edgebetter 残留）:', !st.url.includes('#'));
+    console.log('地址栏 URL 已清理（无 #edge-better 残留）:', !st.url.includes('#'));
   } finally {
     await context.close().catch(() => {});
     server.close();

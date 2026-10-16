@@ -1,5 +1,5 @@
 /**
- * EdgeBetter 浏览器集成测试
+ * Edge Better 浏览器集成测试
  *
  * 用 playwright-core 驱动本机 Edge（executablePath），临时 profile + 加载扩展，
  * 通过 CDP Page.navigate / Target.createTarget 模拟书签点击（主框架导航到 newtab@ URL）。
@@ -62,7 +62,7 @@ window.addEventListener('beforeunload', () => { window.__unloaded = true; });
   await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
   // ---- 启动 Edge（临时 profile，绝不碰用户真实 profile）----
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edgebetter-test-'));
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-better-test-'));
   console.log('profile:', profileDir);
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: EDGE,
@@ -352,7 +352,7 @@ window.addEventListener('beforeunload', () => { window.__unloaded = true; });
       if (optPage) {
         await sleep(800);
         const text = await optPage.textContent('body');
-        check('options 页面可打开', text && text.includes('EdgeBetter 设置'), (text || '').slice(0, 60));
+        check('options 页面可打开', text && text.includes('Edge Better 设置'), (text || '').slice(0, 60));
         await optPage.close();
       } else {
         check('options 页面可打开', false, '页面未出现');

@@ -1,5 +1,5 @@
 /**
- * EdgeBetter —— block 行为聚焦探针（一次性验证脚本）
+ * Edge Better —— block 行为聚焦探针（一次性验证脚本）
  *
  * 目的：查清 DNR block 拦截主框架导航后的真实行为：
  *  1. 历史栈结构（pageX 是否还在、错误页是否占位）
@@ -33,7 +33,7 @@ window.addEventListener('beforeunload', () => { window.__unloaded = true; });
   });
   await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edgebetter-block-'));
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-better-block-'));
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: EDGE,
     headless: true,

@@ -1,4 +1,4 @@
-/** EdgeBetter —— 弹窗：快捷开关 + 统计 */
+/** Edge Better —— 弹窗：快捷开关 + 统计 */
 const toggle = document.getElementById('toggle');
 const statsEl = document.getElementById('stats');
 const hintEl = document.getElementById('hint');

@@ -1,5 +1,5 @@
 /**
- * EdgeBetter —— 星标识别探针（一次性验证脚本，不属于测试套件）
+ * Edge Better —— 星标识别探针（一次性验证脚本，不属于测试套件）
  *
  * 目的：实测当前机器上 Edge 地址栏星标对 newtab@ 前缀书签的识别行为
  *   A. 对照：真实 URL 书签          → 期望星标点亮
@@ -40,7 +40,7 @@ async function main() {
   });
   await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edgebetter-star-'));
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-better-star-'));
   console.log('profile:', profileDir);
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: EDGE,

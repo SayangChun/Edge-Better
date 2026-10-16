@@ -1,5 +1,5 @@
 /**
- * EdgeBetter —— bfcache 归因探针（一次性验证脚本）
+ * Edge Better —— bfcache 归因探针（一次性验证脚本）
  *
  * 目的：查清"经 open.html 恢复原页会重载、经普通 http 页恢复不会"的原因：
  *   1. 中间页是扩展页（chrome-extension://）→ 是否破坏 bfcache
@@ -29,7 +29,7 @@ window.__marker = 'm-' + Date.now();
   });
   await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edgebetter-bfcache2-'));
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-better-bfcache2-'));
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: EDGE,
     headless: false,

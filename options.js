@@ -1,4 +1,4 @@
-/** EdgeBetter —— 选项页 */
+/** Edge Better —— 选项页 */
 const $ = (id) => document.getElementById(id);
 const toast = $('toast');
 let toastTimer = 0;

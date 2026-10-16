@@ -1,5 +1,5 @@
 /**
- * EdgeBetter —— bfcache 行为探针（一次性验证脚本）
+ * Edge Better —— bfcache 行为探针（一次性验证脚本）
  *
  * 目的：验证"页面 A → 导航到别的页 → goBack 回 A"时，A 是否能从
  * bfcache 无感恢复（DOM 状态、滚动位置保留，无刷新）。
@@ -31,7 +31,7 @@ ${withUnload ? "window.addEventListener('beforeunload', () => { window.__unloade
   });
   await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edgebetter-bfcache-'));
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-better-bfcache-'));
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: EDGE,
     headless: true,

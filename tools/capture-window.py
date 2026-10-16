@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""EdgeBetter —— Edge 窗口捕获（含浏览器 UI：地址栏、星标）
+"""Edge Better —— Edge 窗口捕获（含浏览器 UI：地址栏、星标）
 
 用 PrintWindow(PW_RENDERFULLCONTENT) 直接渲染窗口内容，
 不受窗口遮挡 / z-order 影响，输出 PNG。

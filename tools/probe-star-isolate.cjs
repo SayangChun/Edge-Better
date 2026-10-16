@@ -1,8 +1,8 @@
 /**
- * EdgeBetter —— 星标变暗归因探针（一次性验证脚本）
+ * Edge Better —— 星标变暗归因探针（一次性验证脚本）
  *
  * 隔离测试：哪一步让星标从点亮变空心？
- *   A. fragment 导航（pageX → pageX#edgebetter，同文档）→ 星标？
+ *   A. fragment 导航（pageX → pageX#edge-better，同文档）→ 星标？
  *   B. replaceState 改回原 URL → 星标？
  *   C. 轻触书签（update 同值）→ 星标是否恢复？
  */
@@ -32,7 +32,7 @@ async function main() {
   });
   await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edgebetter-stariso-'));
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-better-stariso-'));
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: EDGE,
     headless: false,
@@ -94,10 +94,10 @@ async function main() {
     await capture('iso-0-baseline');
 
     // A: fragment 导航
-    console.log('--- A: fragment 导航（pageX#edgebetter）---');
+    console.log('--- A: fragment 导航（pageX#edge-better）---');
     const cdp = await context.newCDPSession(page);
     await cdp.send('Page.enable');
-    await cdp.send('Page.navigate', { url: `${BASE}/#edgebetter` });
+    await cdp.send('Page.navigate', { url: `${BASE}/#edge-better` });
     await sleep(1200);
     await capture('iso-A-fragment');
     console.log('当前 URL:', await page.url());

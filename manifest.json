@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "EdgeBetter",
+  "name": "Edge Better",
   "version": "0.2.1",
   "description": "书签在新标签页打开：自动覆盖空白新标签页，中键点击不再多开标签页，当前页绝不刷新。书签数据全程本地处理，可一键还原。",
   "permissions": [
@@ -20,7 +20,7 @@
   },
   "options_page": "options.html",
   "action": {
-    "default_title": "EdgeBetter",
+    "default_title": "Edge Better",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

@@ -1,5 +1,5 @@
 /**
- * EdgeBetter —— bfcache 权威判定探针（一次性验证脚本）
+ * Edge Better —— bfcache 权威判定探针（一次性验证脚本）
  *
  * 用 pageshow 事件的 persisted 标志判定"恢复是否来自 bfcache"：
  *   persisted=true  → bfcache 无感恢复（DOM 状态保留）
@@ -37,7 +37,7 @@ addEventListener('pageshow', (e) => { window.__shows++; window.__lastPersisted =
   });
   await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edgebetter-bfcache3-'));
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-better-bfcache3-'));
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: EDGE,
     headless: false,

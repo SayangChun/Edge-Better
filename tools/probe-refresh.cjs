@@ -1,5 +1,5 @@
 /**
- * EdgeBetter —— 「当前页被刷新」复现探针（一次性验证脚本）
+ * Edge Better —— 「当前页被刷新」复现探针（一次性验证脚本）
  *
  * 目的：查清为什么点击书签时当前页会刷新。两种触发方式对比：
  *   A. CDP Page.navigate（渲染进程发起，旧测试用的方式）
@@ -50,7 +50,7 @@ async function main() {
   });
   await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edgebetter-refresh-'));
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-better-refresh-'));
   console.log(`profile: ${profileDir}  服务器延迟: ${DELAY}ms`);
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: EDGE,

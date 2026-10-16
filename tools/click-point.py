@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""EdgeBetter —— Windows 输入辅助：把最新 Edge 窗口置顶并点击指定屏幕坐标
+"""Edge Better —— Windows 输入辅助：把最新 Edge 窗口置顶并点击指定屏幕坐标
 
 用法: python tools/click-point.py X Y
 坐标为物理屏幕像素（窗口矩形 + 元素在窗口内的偏移）。

@@ -1,5 +1,5 @@
 /**
- * EdgeBetter —— 无调试器真机测试台
+ * Edge Better —— 无调试器真机测试台
  *
  * 为什么需要它：Playwright/CDP 附着会让 Edge **不回收 Service Worker**
  * （官方文档：Chrome 118 起调试器会话保活 SW），也会禁用 bfcache。
@@ -90,7 +90,7 @@ async function main() {
   });
   await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edgebetter-harness-'));
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-better-harness-'));
   console.log(`MODE=${MODE}  profile=${profileDir}  IDLE_MS=${IDLE_MS}`);
 
   const edge = spawn(EDGE, [
@@ -173,8 +173,8 @@ async function main() {
         `${leftButRestored ? '（曾离开，已由 bfcache 无损恢复 ✓）' : ''}；` +
         `当前标签${hijacked ? '被书签页顶掉 ✗' : '保持 ✓'}；新标签${opened ? '已打开 ✓' : '未打开 ✗'}`);
     }
-    console.log('\n--- 扩展/浏览器 stderr（过滤 EdgeBetter 相关）---');
-    const errHits = errBuf.join('').split('\n').filter((l) => /EdgeBetter|Unchecked runtime|goBack|Cannot/i.test(l));
+    console.log('\n--- 扩展/浏览器 stderr（过滤 Edge Better 相关）---');
+    const errHits = errBuf.join('').split('\n').filter((l) => /Edge Better|Unchecked runtime|goBack|Cannot/i.test(l));
     console.log(errHits.length ? errHits.slice(-25).join('\n') : '(无相关输出)');
   } finally {
     edge.kill();

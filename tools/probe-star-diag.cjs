@@ -1,5 +1,5 @@
 /**
- * EdgeBetter —— 星标异常诊断探针（一次性验证脚本）
+ * Edge Better —— 星标异常诊断探针（一次性验证脚本）
  *
  * 查清：扩展开启时创建的前缀书签，为什么星标不点亮（扩展关闭时同样操作会点亮）？
  *   1. 创建前缀书签 → 立即回读 URL（确认书签实际状态）
@@ -33,7 +33,7 @@ async function main() {
   });
   await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edgebetter-diag-'));
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-better-diag-'));
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: EDGE,
     headless: false,
