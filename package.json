@@ -1,6 +1,6 @@
 {
   "name": "edgebetter",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "EdgeBetter —— 书签在新标签页打开，并智能覆盖空白新标签页（复刻 Open bookmarks in a new tab 的机制并增强）",
