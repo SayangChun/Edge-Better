@@ -32,16 +32,37 @@
 
 关键细节（都踩过坑，改动前必读）：
 
-- **取消导航必须抢在 `tabs.create` 之前**。`newtab@` 导航在 `onBeforeNavigate` 之后 20~50ms
-  就可能提交（站点秒回时），而 `tabs.create` 要走完整条建标签流程（几十到几百毫秒）。
-  先 `await tabs.create` 的话，等轮到取消时导航已提交，取消就退化成「导航回原页」——
-  用户看到的就是**当前页被刷新**。所以两个操作同时下发，取消是第一个 IPC。
-- **不再用 DNR**：DNR block / redirect 都要先提交一个中间页，中间页提交即卸载当前页，
-  当前页照样刷新（bfcache 在本机 Edge 上不生效）。
+- **取消导航必须抢在 `tabs.create` 之前，而且要"零 await"地立刻下发**。`newtab@` 导航在
+  `onBeforeNavigate` 之后 20~50ms 就可能提交（站点秒回时），而浏览器提交一次导航期间
+  没空处理扩展的 `tabs.update` —— 晚一点点，取消就会排到提交后面，退化成「整页重载」。
+  所以热路径上连 `tabs.get` 都不做，决策只用同步拿到的 `prevUrl`。
+- **不再用 DNR**：DNR block / redirect 都要先提交一个中间页，中间页提交即卸载当前页。
 - 浏览器把 URL 的 userinfo 原样带进网络层，`webNavigation` 得以命中；而 userinfo 本身被
   浏览器忽略——这正是「关闭后书签仍可用」的原因。地址栏星标判断当前页是否已收藏时同样
   忽略 userinfo，因此带前缀的书签照常被识别（见下方「星标识别实测」）。
 - **新建书签的加前缀是延后的**，见下一节。
+
+### 为什么能保证「当前页不刷新」（三条防线）
+
+MV3 的 Service Worker 空闲 30s 就被回收（官方文档：Chrome 118 起调试器会话会保活，
+所以挂着 DevTools / Playwright 时**看不到**这个问题）。用户点书签时才唤醒它，
+冷启动要几十到上百毫秒 —— 那时导航早已提交，取消无从谈起。三层应对：
+
+| 防线 | 做法 | 效果 |
+| --- | --- | --- |
+| ① 保活 SW | `chrome.alarms` 30s 周期事件重置空闲计时器 | 大多数点击走热路径，连"闪一下"都没有 |
+| ② 热路径取消 | 零 await 立刻 `tabs.update` 到「原 URL + `#edgebetter`」（同文档导航） | 文档不卸载，DOM / 滚动状态完整保留 |
+| ③ 冷路径回退 | 先开新标签，再等导航落定；若已提交就 `tabs.goBack()` | 原页在 bfcache 里被冻结-恢复：**不是重载**，状态无损 |
+
+第 ③ 条是关键补救：原页被书签页顶掉后**绝不能**用 `tabs.update` 导航回原 URL ——
+那是跨文档导航，会整页重载（这正是用户报的 bug）。`tabs.goBack()` 走 bfcache，
+实测 `pageshow persisted=true`、docId 不变。`goBack` 偶发报
+"Cannot find a next page in history"（提交瞬间历史还没落定），所以带重试 + 页面内
+`history.back()` 兜底。
+
+冷启动判断依据 `swStartedAt`（SW 启动时刻）；「导航前的 URL」在**任何 await 之前**
+同步快照 —— await 期间排队的 `tabs.onUpdated` 会把 `tabUrls` 里这条记录刷成
+「提交后的 URL」，那样就再也认不出原页了。
 
 ### 为什么新建书签不立刻加前缀
 
@@ -75,7 +96,7 @@ Edge 点星标会**立即**在默认文件夹建好书签并弹出收藏气泡�
 | 受限域名依赖外部 `bookmarks-evz.pages.dev` 静态跳转页 | 已去除，纯本地实现 |
 | 卸载不还原 → 书签 URL 损坏 | 已修复（见"卸载安全"） |
 | 中键点击书签多开空白标签 | 已修复 |
-| 点书签时当前页被刷新 | **已修复**：取消导航抢在 `tabs.create` 之前（见"机制"） |
+| 点书签时当前页被刷新 | **已修复**：三层防线（保活 SW / 零 await 取消 / bfcache 回退），见"为什么能保证当前页不刷新" |
 | 收藏时选了别的文件夹，仍存回最初那个 | **已修复**：加前缀延后到收藏气泡关闭之后（见"为什么新建书签不立刻加前缀"） |
 
 ### 星标识别实测
@@ -142,9 +163,10 @@ Edge 点星标会**立即**在默认文件夹建好书签并弹出收藏气泡�
 background.js        MV3 Service Worker：书签改写 / 导航落点调度 / 新建书签延迟加前缀
 popup.* / options.*  弹窗与选项页
 lib/                 纯函数：前缀、空白页判定、落点决策、改写计划、待处理书签反查
-test/                单元测试（node:test，26 项）
+test/                单元测试（node:test，33 项）
 tools/browser-test.cjs      真机 Edge 集成测试（17 项）
 tools/probe-refresh.cjs     「当前页被刷新」复现探针（DELAY=0 时站点秒回，最严苛）
+tools/harness-real.cjs      无调试器真机测试台（冷/热 SW 场景 + bfcache 实测，见下）
 tools/probe-folder.cjs      收藏气泡 UI 探针（真机点星标/下拉/完成，需真实鼠标点击）
 tools/probe-star-state.cjs  星标识别探针（真机 Edge + PrintWindow 截窗口，三状态对比）
 tools/capture-window.py     通用 Edge 窗口截图（PrintWindow，不受遮挡影响；--list/--all 枚举所有窗口）
@@ -171,6 +193,27 @@ NODE_PATH="C:/Users/ZenithChunyang/.workbuddy-ai/binaries/node/workspace/node_mo
 
 > 注意：集成测试里的 `SERVER_DELAY_MS` 若设得太大（如 250ms），会掩盖「取消导航」的竞态问题——
 > 站点秒回时才是真实情况。回归这类问题请用 `tools/probe-refresh.cjs`（默认 `DELAY=0`）。
+
+### ⚠ 基于 CDP 的测试看不到「冷 SW」类问题
+
+Playwright / DevTools 附着会**保活 Service Worker**（官方文档：Chrome 118 起调试器会话
+保活 SW），也会**禁用 bfcache**。所以任何基于 CDP 的测试都会系统性地掩盖这两类问题——
+包括本项目曾经踩的坑：旧集成测试 13/13 全绿，真机上却会刷新当前页。
+
+需要验证这类行为时用 `tools/harness-real.cjs`：它用 `child_process` 直接起独立 Edge
+（**不接任何调试器**），测试页自己把文档身份汇报给本地服务器，事后只看服务器日志。
+
+```bash
+# 热 SW（刚启动就点书签）
+MODE=race-warm "…/node.exe" tools/harness-real.cjs
+# 冷 SW（静置 45~60s 让 SW 被空闲回收后再点）—— 复现「点书签刷新当前页」
+MODE=race-cold IDLE_MS=60000 "…/node.exe" tools/harness-real.cjs
+# bfcache 实测：原页 → 中间页（立刻 history.back()）→ 看原页是否被冻结-恢复
+MODE=bfcache "…/node.exe" tools/harness-real.cjs
+```
+
+判据：原页 load 次数不变（没重载）、`pagehide persisted=true` + `pageshow persisted=true`
+（bfcache 往返）、`/target` 只被新标签加载一次（当前页没被顶掉）。
 
 ## 路线图（待定）
 
