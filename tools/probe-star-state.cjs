@@ -127,6 +127,20 @@ async function main() {
       await sleep(1500);
       await page.bringToFront();
       await sleep(400);
+      // 回读书签真实状态（验证 create 的 URL 是否被规范化）
+      const dump = await popup.evaluate(async () => {
+        const tree = await chrome.bookmarks.getTree();
+        const out = [];
+        const walk = (nodes) => {
+          for (const n of nodes || []) {
+            if (n.url) out.push(n.url);
+            if (n.children) walk(n.children);
+          }
+        };
+        walk(tree);
+        return out;
+      });
+      console.log(`  [${label}] 书签库: ${JSON.stringify(dump)}`);
       await capture(`${label}-plain`);
       await page.keyboard.press('Control+d');
       await sleep(900);

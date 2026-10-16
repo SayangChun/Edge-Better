@@ -25,12 +25,45 @@
 
 1. 开启时，为所有 http(s) 书签 URL 插入 `newtab@` 标记（位于 userinfo 位置，保留原 scheme）：
    `https://example.com/a` → `https://newtab@example.com/a`
-2. `declarativeNetRequest` 动态规则拦截所有 `^https?://newtab@` 的主框架导航，重定向到扩展的 `open.html`
-3. `open.html` 询问后台落点：
-   - 当前是空白新标签页（或该标签本就是为这次书签导航新建的——中键点击）→ `tabs.update` 直接覆盖当前页
-   - 否则 → `tabs.create` 新建标签打开书签，`open.html` 再 `history.back()` 恢复用户原页面
+2. `webNavigation.onBeforeNavigate` 捕获主框架上的 `^https?://newtab@` 导航，直接决定落点：
+   - 当前是空白新标签页（或该标签本就是为这次书签导航新建的——中键 / Ctrl 点击）→ `tabs.update` 直接覆盖当前页
+   - 否则 → `tabs.create` 新建标签打开书签；**同时**把当前标签导航到「原 URL + `#edgebetter`」，
+     与原页只差 fragment = 同文档导航，**当前页不卸载、不刷新、DOM 状态完整保留**
 
-关键前提（原插件同款机制，经其 2.1 万用户验证，本仓库亦在真机 Edge 实测通过）：浏览器把 URL 的 userinfo 原样带进网络层，DNR 得以命中；而 userinfo 本身被浏览器忽略——这正是"关闭后书签仍可用"的原因。地址栏星标判断当前页是否已收藏时同样忽略 userinfo，因此带前缀的书签照常被识别（见下方"星标识别实测"）。
+关键细节（都踩过坑，改动前必读）：
+
+- **取消导航必须抢在 `tabs.create` 之前**。`newtab@` 导航在 `onBeforeNavigate` 之后 20~50ms
+  就可能提交（站点秒回时），而 `tabs.create` 要走完整条建标签流程（几十到几百毫秒）。
+  先 `await tabs.create` 的话，等轮到取消时导航已提交，取消就退化成「导航回原页」——
+  用户看到的就是**当前页被刷新**。所以两个操作同时下发，取消是第一个 IPC。
+- **不再用 DNR**：DNR block / redirect 都要先提交一个中间页，中间页提交即卸载当前页，
+  当前页照样刷新（bfcache 在本机 Edge 上不生效）。
+- 浏览器把 URL 的 userinfo 原样带进网络层，`webNavigation` 得以命中；而 userinfo 本身被
+  浏览器忽略——这正是「关闭后书签仍可用」的原因。地址栏星标判断当前页是否已收藏时同样
+  忽略 userinfo，因此带前缀的书签照常被识别（见下方「星标识别实测」）。
+- **新建书签的加前缀是延后的**，见下一节。
+
+### 为什么新建书签不立刻加前缀
+
+Edge 点星标会**立即**在默认文件夹建好书签并弹出收藏气泡，用户随后在气泡里挑文件夹。
+实测确认：此刻对节点的任何外部改写都会打乱这次编辑——**用户选的文件夹被丢回最初那个**
+（即「即使选择了其他文件夹，还是保存在最初显示的文件夹里」）。
+
+所以加前缀被推迟到「气泡必然已关闭」的时刻：
+
+| 触发条件 | 为什么安全 |
+| --- | --- |
+| 用户切换标签 | 气泡会因失去焦点而关闭 |
+| 创建它的那个标签被关掉 | 同上 |
+| 创建它的那个标签导航走 | 同上 |
+| 浏览器窗口彻底失焦（切到别的应用） | 同上 |
+| 浏览器重启（`runtime.onStartup`） | 上一轮的气泡不可能还开着 |
+| 兜底 30s | 超过它一律补上 |
+
+在这段「待处理窗口」里书签还没有前缀，点它不会走 `newtab@` 通道。因此扩展额外按 URL
+反查「这次导航的目标是不是我正等着加前缀的那个书签」，命中就走同一套落点逻辑
+（地址栏手动输入同一 URL 不算，避免莫名其妙多开标签）。待处理表存在
+`storage.local.pendingPrefixes`，Service Worker 被回收重启后能续上。
 
 ## 与原版已知问题的对照
 
@@ -42,6 +75,8 @@
 | 受限域名依赖外部 `bookmarks-evz.pages.dev` 静态跳转页 | 已去除，纯本地实现 |
 | 卸载不还原 → 书签 URL 损坏 | 已修复（见"卸载安全"） |
 | 中键点击书签多开空白标签 | 已修复 |
+| 点书签时当前页被刷新 | **已修复**：取消导航抢在 `tabs.create` 之前（见"机制"） |
+| 收藏时选了别的文件夹，仍存回最初那个 | **已修复**：加前缀延后到收藏气泡关闭之后（见"为什么新建书签不立刻加前缀"） |
 
 ### 星标识别实测
 
@@ -78,6 +113,7 @@
 - **在空白新标签页（Edge 默认 NTP、about:blank、自定义起始页）点击书签**：直接覆盖当前空白页，不再多叠一个新标签（v0.1 新功能）
 - **中键 / Ctrl+点击书签**：后台打开新标签，不再产生多余的空白标签（原插件会先多开一个空白标签）
 - **普通地址栏访问**：不受影响，始终正常打开
+- **刚收藏的网站**：`newtab@` 标记要等你关掉收藏气泡（切换标签、关闭该标签、该标签导航走、浏览器重启，最多 30 秒）才补上——这样你在气泡里选的文件夹才不会被冲掉。补上之前点它，扩展同样认得出，仍会在新标签打开
 
 ### 弹窗（工具栏图标）
 
@@ -103,14 +139,16 @@
 ## 开发
 
 ```
-background.js        MV3 Service Worker：书签改写 / DNR / 标签页调度
-open.html / open.js  重定向落地页（问后台、history.back 恢复）
+background.js        MV3 Service Worker：书签改写 / 导航落点调度 / 新建书签延迟加前缀
 popup.* / options.*  弹窗与选项页
-lib/                 纯函数：前缀、空白页判定、落点决策、改写计划（background 与页面共用）
-test/                单元测试（node:test，23 项）
-tools/browser-test.cjs  真机 Edge 集成测试
+lib/                 纯函数：前缀、空白页判定、落点决策、改写计划、待处理书签反查
+test/                单元测试（node:test，26 项）
+tools/browser-test.cjs      真机 Edge 集成测试（17 项）
+tools/probe-refresh.cjs     「当前页被刷新」复现探针（DELAY=0 时站点秒回，最严苛）
+tools/probe-folder.cjs      收藏气泡 UI 探针（真机点星标/下拉/完成，需真实鼠标点击）
 tools/probe-star-state.cjs  星标识别探针（真机 Edge + PrintWindow 截窗口，三状态对比）
-tools/capture-window.py     通用 Edge 窗口截图（PrintWindow，不受遮挡影响）
+tools/capture-window.py     通用 Edge 窗口截图（PrintWindow，不受遮挡影响；--list/--all 枚举所有窗口）
+tools/click-point.py        真实鼠标点击 / 抬窗口 / 按键 / 原样点击（含 --raw、--focus、--key）
 icons/gen_icons.py  图标生成脚本（Pillow）
 ```
 
@@ -127,7 +165,12 @@ NODE_PATH="C:/Users/ZenithChunyang/.workbuddy-ai/binaries/node/workspace/node_mo
   "C:/Users/ZenithChunyang/.workbuddy-ai/binaries/node/versions/22.22.2-2/node.exe" tools/browser-test.cjs
 ```
 
-2026-10-16 实测 13/13 通过：覆盖空白页、新建标签 + 原页恢复、中键防叠标签、开关与降级、选项页。**测试只操作临时 profile，绝不碰用户真实 Edge profile。**
+2026-10-16 实测 17/17 通过：普通导航、覆盖空白页、新建标签 + 原页恢复（不刷新）、中键防叠标签、
+开关与降级、新建书签延迟加前缀、待处理书签点击识别、选项页。
+**测试只操作临时 profile，绝不碰用户真实 Edge profile。**
+
+> 注意：集成测试里的 `SERVER_DELAY_MS` 若设得太大（如 250ms），会掩盖「取消导航」的竞态问题——
+> 站点秒回时才是真实情况。回归这类问题请用 `tools/probe-refresh.cjs`（默认 `DELAY=0`）。
 
 ## 路线图（待定）
 
