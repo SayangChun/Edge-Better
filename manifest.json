@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "EdgeBetter",
+  "version": "0.1.0",
+  "description": "书签在新标签页打开：自动覆盖空白新标签页，中键点击不再多开标签页。书签数据全程本地处理，可一键还原。",
+  "permissions": [
+    "bookmarks",
+    "tabs",
+    "declarativeNetRequest",
+    "webNavigation",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_title": "EdgeBetter",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

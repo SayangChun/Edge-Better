@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    width: 264px; margin: 0; padding: 14px 16px 12px;
+    font: 13px/1.7 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+    color: #1f2937; background: #ffffff;
+  }
+  h1 { font-size: 15px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+  h1 img { width: 18px; height: 18px; }
+  .row { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
+  .switch { position: relative; width: 40px; height: 22px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; inset: 0; background: #cbd5e1; border-radius: 22px; transition: background .2s; cursor: pointer; }
+  .slider::before {
+    content: ""; position: absolute; width: 18px; height: 18px; left: 2px; top: 2px;
+    background: #fff; border-radius: 50%; transition: transform .2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,.25);
+  }
+  input:checked + .slider { background: #2563eb; }
+  input:checked + .slider::before { transform: translateX(18px); }
+  .muted { color: #6b7280; font-size: 12px; }
+  .foot { margin-top: 10px; padding-top: 8px; border-top: 1px solid #eef0f3; display: flex; justify-content: space-between; align-items: center; }
+  a { color: #2563eb; cursor: pointer; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<h1><img src="icons/icon32.png" alt="">EdgeBetter</h1>
+<div class="row"><span>书签在新标签页打开</span>
+  <label class="switch"><input type="checkbox" id="toggle"><span class="slider"></span></label>
+</div>
+<div class="muted" id="stats">读取中…</div>
+<div class="muted" id="hint"></div>
+<div class="foot">
+  <a id="openOptions">打开设置</a>
+  <span class="muted">v0.1.0 · 本地处理</span>
+</div>
+<script type="module" src="popup.js"></script>
+</body>
+</html>

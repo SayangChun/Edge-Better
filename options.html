@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>EdgeBetter 设置</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    max-width: 720px; margin: 0 auto; padding: 28px 24px 60px;
+    font: 14px/1.8 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+    color: #1f2937; background: #ffffff;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #eef0f3; }
+  .sub { color: #6b7280; font-size: 13px; margin: 0 0 8px; }
+  .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; margin-top: 10px; background: #fafbfc; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 10px 0; }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; inset: 0; background: #cbd5e1; border-radius: 24px; transition: background .2s; cursor: pointer; }
+  .slider::before {
+    content: ""; position: absolute; width: 20px; height: 20px; left: 2px; top: 2px;
+    background: #fff; border-radius: 50%; transition: transform .2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,.25);
+  }
+  input:checked + .slider { background: #2563eb; }
+  input:checked + .slider::before { transform: translateX(18px); }
+  .desc { color: #6b7280; font-size: 12.5px; margin: 2px 0 0; }
+  textarea {
+    width: 100%; min-height: 84px; margin-top: 6px; padding: 8px 10px;
+    border: 1px solid #d1d5db; border-radius: 8px; resize: vertical;
+    font: 12.5px/1.6 ui-monospace, Consolas, monospace;
+  }
+  button {
+    padding: 7px 16px; border-radius: 8px; border: 1px solid #d1d5db;
+    background: #fff; color: #1f2937; font-size: 13px; cursor: pointer;
+  }
+  button:hover { background: #f3f4f6; }
+  button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+  button.primary:hover { background: #1d4ed8; }
+  button.danger { color: #dc2626; border-color: #fca5a5; }
+  button.danger:hover { background: #fef2f2; }
+  .stats { font-size: 13px; color: #374151; }
+  .stats b { color: #111827; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .note { font-size: 12.5px; color: #6b7280; }
+  .note li { margin: 4px 0; }
+  code { background: #f3f4f6; border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    background: #111827; color: #fff; padding: 8px 18px; border-radius: 8px;
+    font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none;
+  }
+  .toast.show { opacity: .92; }
+</style>
+</head>
+<body>
+<h1>EdgeBetter 设置</h1>
+<p class="sub">书签在新标签页打开 · 自动覆盖空白新标签页 · 数据全程本地处理</p>
+
+<h2>基本</h2>
+<div class="card">
+  <div class="row">
+    <div>
+      <div>启用书签新标签页打开</div>
+      <p class="desc">开启后为所有 http(s) 书签添加 <code>newtab@</code> 标记；关闭时全部还原。中键 / Ctrl 点击书签同样受益。</p>
+    </div>
+    <label class="switch"><input type="checkbox" id="toggleEnabled"><span class="slider"></span></label>
+  </div>
+  <div class="row">
+    <div>
+      <div>覆盖空白新标签页</div>
+      <p class="desc">在空白的新标签页（Edge 默认 NTP、about:blank 等）点击书签时，直接在当前页打开，不再多开一个空白页。</p>
+    </div>
+    <label class="switch"><input type="checkbox" id="toggleOverride"><span class="slider"></span></label>
+  </div>
+</div>
+
+<h2>自定义空白页（高级）</h2>
+<div class="card">
+  <p class="note">如果你使用第三方新标签页扩展（如 Momentum），把它的页面特征写在这里，点击书签时同样会被覆盖。每行一条正则，例如：</p>
+  <textarea id="patterns" placeholder="^https://momentumdash\.com/" spellcheck="false"></textarea>
+  <div class="actions"><button id="savePatterns" class="primary">保存匹配规则</button></div>
+  <p class="note" id="patternsHint"></p>
+</div>
+
+<h2>书签管理</h2>
+<div class="card">
+  <p class="stats" id="statsLine">读取中…</p>
+  <div class="actions">
+    <button id="rescan">重新扫描统计</button>
+    <button id="rewriteAll">重新改写全部书签</button>
+    <button id="restoreAll" class="danger">恢复所有书签为原始 URL</button>
+  </div>
+  <p class="note">“恢复所有书签”等同于关闭开关：去掉全部 <code>newtab@</code> 前缀。手动编辑书签 URL 去掉前缀可豁免单个书签，不会被自动补回。</p>
+</div>
+
+<h2>已知限制（与原版一致，机制固有）</h2>
+<div class="card">
+  <ul class="note">
+    <li>书签被改写后图标可能短暂显示为默认图标，首次打开后浏览器会自动恢复。</li>
+    <li>少数带有“离开确认”逻辑的页面，点击书签时可能先弹出一次“要离开此站点吗”，点击“离开”即可，原页面仍会保留。</li>
+    <li>地址栏星标可能认不出当前网站已收藏（书签 URL 带前缀所致）。</li>
+    <li><code>javascript:</code>、<code>edge://</code>、<code>file:</code> 等非 http(s) 书签不参与改写，保持浏览器默认行为。</li>
+  </ul>
+</div>
+
+<h2>卸载</h2>
+<div class="card">
+  <p class="note">卸载本扩展前，建议先点“恢复所有书签为原始 URL”。即使忘记，由于前缀位于 URL 的 userinfo 位置、被浏览器忽略，书签仍可正常打开（仅失去新标签页行为）。</p>
+</div>
+
+<div class="toast" id="toast"></div>
+<script type="module" src="options.js"></script>
+</body>
+</html>
