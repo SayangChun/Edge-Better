@@ -121,6 +121,58 @@ Edge 点星标会**立即**在默认文件夹建好书签并弹出收藏气泡�
 
 > 注：实验只覆盖本机 Edge 版本。若你在其他版本上遇到星标不点亮，可以重新运行探针脚本取证。
 
+## 为什么不支持「关闭窗口前确认」
+
+有人会想要「点右上角 X 时不立即关闭，先弹框确认」。这个需求**没有做**，因为它与本插件的核心机制直接冲突。以下是 2026-10-17 在真机 Edge 155 上的实测依据（`tools/probe-wmclose.py`、`tools/probe-close-confirm.cjs`）：
+
+| 实验 | 做法 | 结果 |
+| --- | --- | --- |
+| A 对照 | 普通页面，`PostMessage(WM_CLOSE)`（等价点 X） | 窗口消失、进程退出 |
+| B 拦截 | content script 注入 `beforeunload` 后点 X | 窗口保留，弹出原生 **「是否离开网站?」** 对话框 |
+| C bfcache | 注入 `beforeunload` + 用户点过页面，A→B→后退 | **原页被重新加载**，`persisted=false` |
+
+`beforeunload` 是扩展唯一能拦下关闭动作的钩子，但 Chromium 给它配了两条触发条件恰好重合的规则：
+
+- **只有用户交互过**（sticky user activation），关闭时才会弹确认
+- **一旦用户交互过**，页面就**失去 bfcache 资格**
+
+第二条会直接推翻本插件 v0.2 的核心修复：冷路径 `tabs.goBack()` 靠 bfcache 让原页免于重载，页面一旦失去资格，`goBack` 就退化成整页刷新——正是用户报过的那个 bug。（对照实验：无交互时注入 `beforeunload`，bfcache 仍生效 `persisted=true`，说明冲突只在交互后出现。）
+
+另外两个无法绕开的限制：
+
+1. **新标签页注入不了**：`edge://newtab` 禁止注入 content script（实测返回 null）。用户停在空白新标签页点 X 时不会有任何提示，而这是最常见的关窗场景
+2. **文案不可定制**：浏览器强制使用自己的本地化文案（「是否离开网站?」），扩展只能决定拦不拦，做不出自定义的「确定要关闭浏览器吗」弹框
+
+**替代方案**：Edge 自带设置「关闭具有多个选项卡的窗口时显示警告」（`edge://settings/appearance`，pref 名 `browser.show_prompt_before_closing_tabs`，本机默认 `true`）。它不影响 bfcache、零成本，但只覆盖多标签窗口。
+
+如果将来确实要做，只能作为**默认关闭**的开关提供，并接受「交互过的页面失去 bfcache」这一代价。
+
+## 为什么不支持「移除右键菜单里的打印」
+
+需求：右键菜单里的「打印...」既占位置又容易误点，希望扩展能去掉它（做成可选开关）。
+
+**结论：不做。** 不是实现成本问题，而是浏览器没有提供这个能力。
+
+Chromium 的右键菜单属于浏览器 UI。扩展 API 只有 `chrome.contextMenus`，它只能**增删扩展自己创建的菜单项**——原生项既读不到也改不了。CDP 里没有操作浏览器 UI 菜单的域，企业策略里也没有「只隐藏打印这一项」的粒度。这是 API 能力边界，不是某个版本的行为差异，换浏览器版本也不会变。
+
+唯一能真正去掉「打印」的做法：content script 拦截 `contextmenu` 事件并 `preventDefault()`，再**自绘一个菜单替换整个原生菜单**。代价远超收益：
+
+| 原生菜单项 | 自绘菜单能否替代 |
+| --- | --- |
+| 检查（Inspect） | ❌ 扩展无法打开 DevTools 并定位到元素 |
+| 翻译 / 朗读所选内容 | ❌ |
+| 另存为 | ❌ |
+| 添加到收藏夹 | ❌（`chrome.bookmarks` 能建书签，但会打断收藏气泡，见上一节） |
+| 复制图片 / 图片另存为 | ⚠️ 跨域图片受 canvas 污染与下载限制 |
+| 后退 / 前进 / 刷新 / 复制 / 粘贴 / 全选 | ✅ |
+| 暗色模式、屏幕边缘自动翻转、键盘导航、高 DPI 缩放 | ⚠️ 需逐项重写，且永远与原生有差异 |
+
+还有一层：自绘菜单**只对普通网页生效**。`edge://` 页面、PDF 查看器、扩展页面注入不了 content script，这些地方依旧是带「打印」的原生菜单。
+
+即「为了去掉一个菜单项，牺牲整个右键菜单」，所以这个功能不做。
+
+**如果你确实想让打印入口消失**，浏览器层面有一个真办法，但副作用明确：用组策略把 `PrintingEnabled` 设为 `0`（`HKLM\SOFTWARE\Policies\Microsoft\Edge`），会**禁用整个打印功能**——菜单项没了，`Ctrl+P` 也一起失效，且需要管理员权限。这不是扩展能做的事，也不建议为「少点错一次」付出这个代价。
+
 ## 安装
 
 1. Edge 地址栏输入 `edge://extensions`
@@ -179,6 +231,10 @@ tools/probe-folder.cjs      收藏气泡 UI 探针（真机点星标/下拉/完�
 tools/probe-star-state.cjs  星标识别探针（真机 Edge + PrintWindow 截窗口，三状态对比）
 tools/capture-window.py     通用 Edge 窗口截图（PrintWindow，不受遮挡影响；--list/--all 枚举所有窗口）
 tools/click-point.py        真实鼠标点击 / 抬窗口 / 按键 / 原样点击（含 --raw、--focus、--key）
+tools/click-center.py       点最新 Edge 窗口中心（真实鼠标，制造 sticky user activation；harness 的 CLICK_FIRST=1 用它）
+tools/probe-wmclose.py      关闭确认探针：发 WM_CLOSE（等价点 X）看 beforeunload 能否拦住关闭
+tools/probe-close-confirm.cjs  CDP 侧探针：content script 的 beforeunload 是否生效、edge://newtab 能否注入
+tools/build-guard-ext.py    构建注入 beforeunload 的扩展副本（供上面两个探针和 bfcache 对照实验使用）
 icons/gen_icons.py  图标生成脚本（Pillow）
 ```
 
@@ -222,6 +278,19 @@ MODE=bfcache "…/node.exe" tools/harness-real.cjs
 
 判据：原页 load 次数不变（没重载）、`pagehide persisted=true` + `pageshow persisted=true`
 （bfcache 往返）、`/target` 只被新标签加载一次（当前页没被顶掉）。
+
+两个环境变量：
+
+- `EXT_DIR=<路径>` 指定要加载的扩展目录（默认本仓库）。配合 `tools/build-guard-ext.py`
+  可以测「注入 beforeunload 的扩展」，用于验证 bfcache 资格。
+- `CLICK_FIRST=1` 在导航前用真实鼠标点一下测试页，制造 sticky user activation。
+  `beforeunload` 的关闭确认和 bfcache 资格都只在用户交互过后才生效，不加这个开关
+  测不出「交互后失去 bfcache」的现象。
+
+```bash
+# 交互后 bfcache 是否还在（guard 扩展 + 真实点击）
+EXT_DIR="$(python tools/build-guard-ext.py)" CLICK_FIRST=1 MODE=bfcache "…/node.exe" tools/harness-real.cjs
+```
 
 ## 路线图（待定）
 
