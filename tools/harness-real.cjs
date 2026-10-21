@@ -23,9 +23,9 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
-const { spawn } = require('child_process');
+const { spawn, execFileSync } = require('child_process');
 
-const EXT_DIR = 'E:/project/EdgeBetter';
+const EXT_DIR = process.env.EXT_DIR || 'E:/project/EdgeBetter';
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const PORT = Number(process.env.PORT || 8915);
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -127,6 +127,24 @@ async function main() {
     if (MODE === 'race-cold') {
       console.log(`--- 静置 ${IDLE_MS / 1000}s，让 SW 被空闲回收 ---`);
       await sleep(IDLE_MS);
+    }
+
+    // CLICK_FIRST=1：先真实点一下页面制造 sticky user activation。
+    // 这条开关是给 beforeunload / bfcache 资格实验用的 —— 两者都只在
+    // 「用户交互过」时才生效，而 CDP 合成的点击不能用（CDP 本身禁用 bfcache）。
+    if (process.env.CLICK_FIRST === '1') {
+      const py = process.env.PYTHON ||
+        'C:/Users/ZenithChunyang/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe';
+      console.log('--- 真实点击页面（制造 user activation）---');
+      try {
+        // 必须按测试页标题匹配，否则会点到用户自己开着的 Edge 窗口
+        execFileSync(py, [path.join(__dirname, 'click-center.py'), 'PAGE /origin'], {
+          stdio: 'inherit',
+        });
+      } catch (e) {
+        console.log('  点击失败:', e.message);
+      }
+      await sleep(1200);
     }
 
     if (MODE === 'bfcache') {
