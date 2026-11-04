@@ -53,7 +53,7 @@ const createdForBookmark = new Set();
 const pendingPrefix = new Map();
 let tabUrlsTimer = null;
 
-let settings = { enabled: true, overrideBlankTab: true, extraBlankPatterns: [] };
+let settings = { enabled: true, overrideBlankTab: true, extraBlankPatterns: [], pinchLocalZoom: true, zoomExcluded: [] };
 
 /* ---------------- 设置 ---------------- */
 async function loadSettings() {
@@ -62,6 +62,8 @@ async function loadSettings() {
     enabled: stored.enabled !== false,
     overrideBlankTab: stored.overrideBlankTab !== false,
     extraBlankPatterns: Array.isArray(stored.extraBlankPatterns) ? stored.extraBlankPatterns : [],
+    pinchLocalZoom: stored.pinchLocalZoom !== false,
+    zoomExcluded: Array.isArray(stored.zoomExcluded) ? stored.zoomExcluded : [],
   };
 }
 
@@ -76,8 +78,12 @@ chrome.storage.onChanged.addListener((changes, area) => {
  * MV3 的 SW 空闲 30s 就被回收（官方文档：Chrome 118 起调试器会话会保活，所以
  * 挂着 DevTools/Playwright 时看不到这个问题）。而书签点击要求扩展在
  * 20~50ms 内把 pending 导航取消掉——冷启动唤醒要几十到几百毫秒，必然输掉竞态，
- * 当前页会被书签页顶掉。30s 周期的闹钟事件正好重置空闲计时器，让 SW 保持温热。
- * （成本：SW 常驻内存几 MB + 每 30s 一次空转。这是"当前页绝不刷新"的代价。）
+ * 当前页会被书签页顶掉。
+ *
+ * 主力保活是 cs/guard.js 的心跳：内容脚本每 20s 发一条消息，只要还开着普通网页
+ * SW 就不会睡。这里的 30s 闹钟只是兜底——alarms 的最小周期正好等于回收阈值，
+ * 卡在临界点上不可靠，但「没有任何网页可注入」时它是唯一的保活手段。
+ * （成本：SW 常驻内存几 MB + 每 20s 一次心跳。这是"当前页绝不刷新"的代价。）
  */
 async function syncKeepAlive() {
   try {
@@ -312,6 +318,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
  * 清掉地址栏里用于取消导航的临时 fragment。
  * 同文档导航后 hash 应立即就位；重试几次兜住偶发的时序错位（脚本可能在
  * 文档尚未就绪时被注入）。页面自己改了 hash 时立即放弃，不覆盖页面状态。
+ * ⚠ 必须把 history.state 原样写回：fragment 导航会把 state 顶成 null，
+ *   而 SPA 的路由状态就存在这里（cs/guard.js 会先恢复一份快照，这里再兜一次）。
  */
 async function cleanupFragment(tabId, frag, original) {
   for (let i = 0; i < 5; i++) {
@@ -320,7 +328,7 @@ async function cleanupFragment(tabId, frag, original) {
         target: { tabId },
         func: (expectedHash, orig) => {
           if (location.hash !== expectedHash) return false;
-          history.replaceState(null, '', orig); // 不触发导航、不影响星标
+          history.replaceState(history.state, '', orig); // 不触发导航、不影响星标
           return true;
         },
         args: [frag, original],
@@ -389,6 +397,10 @@ async function restoreByGoingBack(tabId) {
  * 与原页只差 fragment = 同文档导航：页面不卸载、不刷新、DOM 状态完整保留。
  * 调用它会**立刻发出 tabs.update**（async 函数体在第一个 await 之前是同步执行的），
  * 所以调用方要把它排在 tabs.create 前面。
+ *
+ * ⚠ 这次 fragment 导航会触发 popstate + hashchange。SPA（直播站基本都是）
+ *   会当成路由变化重新渲染，把播放器销毁/暂停——这正是 v0.3.1 修的那个 bug。
+ *   靠 cs/guard.js 在捕获阶段把这些事件吞掉，页面感知不到。
  */
 async function cancelPendingNav(tabId, prevUrl) {
   const base = prevUrl ? prevUrl.split('#')[0] : '';
@@ -510,6 +522,12 @@ async function getState() {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || typeof msg !== 'object') return;
+  // 内容脚本的保活心跳（cs/guard.js 每 20s 一条）：消息到达本身就会重置
+  // SW 的 30s 空闲计时器，这里回一个空响应把端口正常关掉。
+  if (msg.type === 'keepalive') {
+    sendResponse({ ok: true });
+    return;
+  }
   if (msg.type === 'getState') {
     getState().then(sendResponse).catch(() => sendResponse({ error: 'getState failed' }));
     return true;
@@ -525,6 +543,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const patch = {};
     if (typeof msg.overrideBlankTab === 'boolean') patch.overrideBlankTab = msg.overrideBlankTab;
     if (Array.isArray(msg.extraBlankPatterns)) patch.extraBlankPatterns = msg.extraBlankPatterns;
+    if (typeof msg.pinchLocalZoom === 'boolean') patch.pinchLocalZoom = msg.pinchLocalZoom;
+    if (Array.isArray(msg.zoomExcluded)) patch.zoomExcluded = msg.zoomExcluded;
     chrome.storage.local
       .set(patch)
       .then(() => getState())

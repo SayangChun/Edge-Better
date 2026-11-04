@@ -4,7 +4,7 @@
 
 原插件闭源。本仓库按其官方公开描述的机制重建，并修复已知问题、增加新功能。全部数据本地处理。
 
-## 功能（v0.2.1）
+## 功能（v0.3.1）
 
 **核心（复刻原插件）**
 
@@ -14,6 +14,8 @@
 
 **增强与修复**
 
+- **点书签不再打断正在播放的页面**（v0.3.1）：取消导航靠的是同文档 fragment 导航，它会触发 `popstate` + `hashchange`，SPA（直播站基本都是）会当成路由变化重新渲染、把播放器暂停。现在由内容脚本在捕获阶段吞掉这两个事件，页面完全感知不到
+- **触控板捏合放大局部内容**（v0.3）：桌面 Edge 默认把捏合当成页面缩放（整页重排、布局变化），本扩展改为只放大可视区域、布局不变，接近手机手感。可关闭，支持按域名排除
 - **覆盖空白新标签页**（首个增强功能）：在空白新标签页（Edge 默认 NTP、about:blank 等）点击书签时，直接在当前页打开，不再叠加一个新标签。可在选项中关闭
 - **自定义空白页规则**：第三方新标签页（如 Momentum）可加入正则匹配，同样被覆盖
 - **中键 / Ctrl 点击书签不再多开空白标签**（原插件会先多开一个新标签再叠一个书签页）
@@ -25,6 +27,8 @@
 
 | 版本 | 变更 |
 | --- | --- |
+| v0.3.1 | 修复「看直播时点书签，直播暂停」：取消导航产生的 `popstate` / `hashchange` 会触发 SPA 重新渲染，现由内容脚本在捕获阶段静默；同时把 SW 保活从 30s 闹钟改为内容脚本心跳，冷启动竞态大幅减少 |
+| v0.3.0 | 新增「触控板捏合放大局部内容」：接管 ctrl+wheel，用 transform 只放大可视区域而不重排布局；支持全局开关与按域名排除 |
 | v0.2.1 | 修复冷 Service Worker（空闲回收后唤醒慢于导航提交）下点书签仍会刷新当前页 |
 | v0.2 | 修复点书签时当前页被刷新（三层防线：alarms 保活 SW / 热路径零 await 取消 / 冷路径 bfcache 回退）；修复新建书签时收藏文件夹被冲回默认文件夹（加前缀延后到收藏气泡关闭之后）；中键 / Ctrl 点击不再多开空白标签 |
 | v0.1 | 书签在新标签页打开 + 覆盖空白新标签页；卸载安全（前缀在 userinfo 位置被浏览器忽略）；手动豁免；非 http(s) 书签不改写 |
@@ -36,7 +40,9 @@
 2. `webNavigation.onBeforeNavigate` 捕获主框架上的 `^https?://newtab@` 导航，直接决定落点：
    - 当前是空白新标签页（或该标签本就是为这次书签导航新建的——中键 / Ctrl 点击）→ `tabs.update` 直接覆盖当前页
    - 否则 → `tabs.create` 新建标签打开书签；**同时**把当前标签导航到「原 URL + `#edge-better`」，
-     与原页只差 fragment = 同文档导航，**当前页不卸载、不刷新、DOM 状态完整保留**
+     与原页只差 fragment = 同文档导航，**当前页不卸载、不刷新、DOM 状态完整保留**。
+     这次 fragment 导航会触发 `popstate` + `hashchange`，由内容脚本 `cs/guard.js`
+     在捕获阶段吞掉（见下一节），页面感知不到
 
 关键细节（都踩过坑，改动前必读）：
 
@@ -58,9 +64,14 @@ MV3 的 Service Worker 空闲 30s 就被回收（官方文档：Chrome 118 起�
 
 | 防线 | 做法 | 效果 |
 | --- | --- | --- |
-| ① 保活 SW | `chrome.alarms` 30s 周期事件重置空闲计时器 | 大多数点击走热路径，连"闪一下"都没有 |
-| ② 热路径取消 | 零 await 立刻 `tabs.update` 到「原 URL + `#edge-better`」（同文档导航） | 文档不卸载，DOM / 滚动状态完整保留 |
+| ① 保活 SW | 内容脚本每 20s 发一条心跳（`cs/guard.js`）；`chrome.alarms` 30s 兜底 | 只要开着普通网页，SW 就不会睡，点击走热路径 |
+| ② 热路径取消 | 零 await 立刻 `tabs.update` 到「原 URL + `#edge-better`」（同文档导航），并由内容脚本静默 `popstate` / `hashchange` | 文档不卸载，DOM / 滚动状态完整保留，SPA 也不重渲染 |
 | ③ 冷路径回退 | 先开新标签，再等导航落定；若已提交就 `tabs.goBack()` | 原页在 bfcache 里被冻结-恢复：**不是重载**，状态无损 |
+
+第 ① 条为什么不再只靠 `chrome.alarms`：alarms 的最小周期就是 30 秒，而 SW 的回收
+阈值也正好是 30 秒 —— 卡在临界点上，调度稍有延迟 SW 就已经被回收，冷启动唤醒
+（几十到上百毫秒）必然输给 20~50ms 就提交的导航。改成内容脚本主动发心跳后，
+只要还有一个普通网页开着，SW 就一直温热。alarms 只作为「没有网页可注入」时的兜底。
 
 第 ③ 条是关键补救：原页被书签页顶掉后**绝不能**用 `tabs.update` 导航回原 URL ——
 那是跨文档导航，会整页重载（这正是用户报的 bug）。`tabs.goBack()` 走 bfcache，
@@ -71,6 +82,32 @@ MV3 的 Service Worker 空闲 30s 就被回收（官方文档：Chrome 118 起�
 冷启动判断依据 `swStartedAt`（SW 启动时刻）；「导航前的 URL」在**任何 await 之前**
 同步快照 —— await 期间排队的 `tabs.onUpdated` 会把 `tabUrls` 里这条记录刷成
 「提交后的 URL」，那样就再也认不出原页了。
+
+### 为什么取消导航还要「静默事件」
+
+取消 pending 导航只能用 fragment 导航（`原URL + #edge-better`）。文档虽然不卸载，
+但浏览器照样会派发 `popstate` 和 `hashchange` —— 这正是「看直播时点书签，直播暂停」
+的根因：直播站基本都是 SPA，路由层一收到这两个事件就重新解析路由、销毁并重建播放器。
+
+实测（`tools/probe-live-pause.cjs`，带 hash 路由的模拟直播页）：
+
+| | 修前 | 修后 |
+| --- | --- | --- |
+| 页面收到的事件 | `beforeunload` + `popstate` + `hashchange` | 仅 `beforeunload` |
+| 视频 `paused` | `true`（路由切走，播放器被暂停） | `false` |
+| `currentTime` | 1.21 → 1.23（停住） | 1.21 → 3.95（继续推进） |
+
+`cs/guard.js` 在 `document_start` 注入，比页面脚本更早注册**捕获阶段**监听器，
+只在 `location.hash` 是取消标记时 `stopImmediatePropagation()`，页面监听器根本收不到。
+顺带把 `history.state` 也恢复回去（fragment 导航会把它顶成 `null`，而 SPA 的路由
+状态就存在这里）。
+
+剩下的固有代价（无解，写进选项页的已知限制）：
+
+- `beforeunload` 挡不住 —— 它在导航一开始就派发了，而且吞掉它会破坏「关闭前确认」。
+  不过它主要用于弹「确认离开」，不用于暂停播放
+- 历史记录会多一条（fragment 导航必然新增 entry，`replaceState` 只能改 URL 不能删记录）。
+  多出来的那条 URL 已被改回原值，按后退不会跳到别处
 
 ### 为什么新建书签不立刻加前缀
 
@@ -93,6 +130,28 @@ Edge 点星标会**立即**在默认文件夹建好书签并弹出收藏气泡�
 反查「这次导航的目标是不是我正等着加前缀的那个书签」，命中就走同一套落点逻辑
 （地址栏手动输入同一 URL 不算，避免莫名其妙多开标签）。待处理表存在
 `storage.local.pendingPrefixes`，Service Worker 被回收重启后能续上。
+
+## 触控板捏合：放大局部而不是整体缩放
+
+桌面 Chromium 把触控板捏合合成为 `ctrl+wheel`，交给浏览器做 **page zoom**——改变 CSS 像素与设备像素的比例，整页重新排版（等价 Ctrl +/-）。而触屏捏合走的是 **visual viewport zoom**：只放大可视区域，布局不动，可平移。这就是「有的网站能放大局部、有的整体缩放」的来源：能局部放大的那些（地图、PDF 阅读器、图片查看器）是自己用 JS 接管了 `ctrl+wheel`。
+
+本扩展在**捕获阶段**接管 `ctrl+wheel`，`preventDefault()` 掉浏览器的 page zoom，改用 `transform: scale()` 放大根元素，`transform-origin` 跟随光标，所以缩放时光标下的内容保持不动。
+
+真机验证（`tools/probe-cs-zoom.cjs`，真实 Ctrl+滚轮，不接调试器）：
+
+| 场景 | dpr | 根元素 transform | 结论 |
+| --- | --- | --- | --- |
+| 无扩展，Ctrl+滚轮 | 1.5 → 1.65 | — | 浏览器 page zoom（整页重排） |
+| 本扩展，Ctrl+滚轮 | 1.5（不变） | `scale(2.117)` | 局部放大，page zoom 被拦下 |
+| 加入排除列表后 | 1.5 → 1.65 | 空 | 恢复浏览器默认行为 |
+
+**代价（机制固有，不是 bug）**：
+
+1. **`position: fixed` 元素会失效**。给根元素加 `transform` 会建立 containing block，`fixed` 元素改为相对文档定位——实测放大后滚动 600px，导航栏的 `top` 也跟着变 600px，并可能移出视口。这是选择 transform 方案的必然结果，没有既保持布局不变、又让 fixed 正常的写法。
+2. **网站自己的缩放会被抢走**。地图、PDF 阅读器、在线白板、图片查看器都靠 `ctrl+wheel` 实现缩放，被接管后它们自己的缩放就不响应了。这类站点请加进排除列表。
+3. **iframe 内部不生效**（只注入顶层文档），嵌在 iframe 里的地图仍然走浏览器默认缩放。
+
+关闭方式：选项页「触控板缩放」开关，或按域名排除。当前页按 `Ctrl+0` 重置到 1x。
 
 ## 与原版已知问题的对照
 
@@ -205,6 +264,7 @@ Chromium 的右键菜单属于浏览器 UI。扩展 API 只有 `chrome.contextMe
 - **总开关**：同上
 - **覆盖空白新标签页**：关闭后回到原插件行为（空白页点击书签会新建标签）
 - **自定义空白页正则**：每行一条正则。第三方起始页（如 `^https://momentumdash\.com/`）匹配到时同样会被覆盖
+- **触控板捏合放大局部**：开关 + 排除域名列表（每行一个域名，匹配该域名及子域）。地图 / PDF / 图片查看器建议排除
 - **重新扫描统计 / 重新改写全部 / 恢复所有书签为原始 URL**：手动控制按钮
 - 已知限制说明（地址栏残留标记、favicon 缓存等）也列在选项页底部
 
@@ -222,11 +282,18 @@ Chromium 的右键菜单属于浏览器 UI。扩展 API 只有 `chrome.contextMe
 ```
 background.js        MV3 Service Worker：书签改写 / 导航落点调度 / 新建书签延迟加前缀
 popup.* / options.*  弹窗与选项页
+cs/guard.js          content script：吞掉取消导航产生的 popstate / hashchange，并给 SW 发保活心跳
+cs/zoom.js           content script：接管 ctrl+wheel，用 transform 做局部放大
 lib/                 纯函数：前缀、空白页判定、落点决策、改写计划、待处理书签反查
-test/                单元测试（node:test，35 项；readme-sync.test.js 校验本 README 的版本与测试数标注）
-tools/browser-test.cjs      真机 Edge 集成测试（17 项）
+test/                单元测试（node:test，38 项；readme-sync.test.js 校验本 README 的版本与测试数标注）
+tools/browser-test.cjs      真机 Edge 集成测试（18 项）
 tools/probe-refresh.cjs     「当前页被刷新」复现探针（DELAY=0 时站点秒回，最严苛）
+tools/probe-live-pause.cjs  「直播页被打断」探针：模拟带媒体播放的直播页，查取消导航的副作用事件
+tools/probe-cancel.cjs      取消写法对照实验：same / empty / frag / back 四种写法的副作用
 tools/harness-real.cjs      无调试器真机测试台（冷/热 SW 场景 + bfcache 实测，见下）
+tools/probe-cs-zoom.cjs     触控板捏合探针：验证 content script 能否拦下 page zoom、transform 放大、排除列表
+tools/wheel-zoom.py         真实 Ctrl+滚轮注入（CDP 合成事件不触发 page zoom，只能用真实输入）
+tools/probe-pinch-zoom.cjs  缩放路径判定：区分 page zoom 与 visual viewport zoom（dpr vs visualViewport.scale）
 tools/probe-folder.cjs      收藏气泡 UI 探针（真机点星标/下拉/完成，需真实鼠标点击）
 tools/probe-star-state.cjs  星标识别探针（真机 Edge + PrintWindow 截窗口，三状态对比）
 tools/capture-window.py     通用 Edge 窗口截图（PrintWindow，不受遮挡影响；--list/--all 枚举所有窗口）
@@ -251,7 +318,8 @@ NODE_PATH="C:/Users/ZenithChunyang/.workbuddy-ai/binaries/node/workspace/node_mo
   "C:/Users/ZenithChunyang/.workbuddy-ai/binaries/node/versions/22.22.2-2/node.exe" tools/browser-test.cjs
 ```
 
-2026-10-16 实测 17/17 通过：普通导航、覆盖空白页、新建标签 + 原页恢复（不刷新）、中键防叠标签、
+2026-11-04 实测 18/18 通过：普通导航、覆盖空白页、新建标签 + 原页恢复（不刷新）、
+原页感知不到取消导航（无 popstate / hashchange）、中键防叠标签、
 开关与降级、新建书签延迟加前缀、待处理书签点击识别、选项页。
 **测试只操作临时 profile，绝不碰用户真实 Edge profile。**
 

@@ -18,6 +18,8 @@ async function refresh() {
   const state = await getState();
   $('toggleEnabled').checked = !!state.enabled;
   $('toggleOverride').checked = state.overrideBlankTab !== false;
+  $('togglePinchZoom').checked = state.pinchLocalZoom !== false;
+  $('zoomExcluded').value = (state.zoomExcluded || []).join('\n');
   $('patterns').value = (state.extraBlankPatterns || []).join('\n');
   const n = state.stats && typeof state.stats.prefixedCount === 'number' ? state.stats.prefixedCount : 0;
   const t = state.stats && state.stats.lastScan ? new Date(state.stats.lastScan).toLocaleString() : '—';
@@ -40,6 +42,29 @@ $('toggleEnabled').addEventListener('change', async (e) => {
 $('toggleOverride').addEventListener('change', async (e) => {
   try {
     await chrome.runtime.sendMessage({ type: 'saveSettings', overrideBlankTab: e.target.checked });
+    showToast('已保存');
+  } catch {
+    /* ignore */
+  }
+});
+
+$('togglePinchZoom').addEventListener('change', async (e) => {
+  try {
+    await chrome.runtime.sendMessage({ type: 'saveSettings', pinchLocalZoom: e.target.checked });
+    showToast(e.target.checked ? '捏合改为放大局部' : '已恢复浏览器默认缩放');
+  } catch {
+    /* ignore */
+  }
+});
+
+$('saveZoomExcluded').addEventListener('click', async () => {
+  const list = $('zoomExcluded').value
+    .split('\n')
+    .map((s) => s.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''))
+    .filter(Boolean);
+  try {
+    await chrome.runtime.sendMessage({ type: 'saveSettings', zoomExcluded: list });
+    $('zoomExcludedHint').textContent = `已保存 ${list.length} 个排除域名`;
     showToast('已保存');
   } catch {
     /* ignore */

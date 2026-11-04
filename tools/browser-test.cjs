@@ -53,6 +53,12 @@ async function main() {
 window.__navType = performance.getEntriesByType('navigation')[0].type;
 window.__unloaded = false;
 window.addEventListener('beforeunload', () => { window.__unloaded = true; });
+// 取消导航靠的是同文档 fragment 导航，浏览器会派发 popstate + hashchange。
+// SPA 直播站会把它当路由变化重新渲染（播放器被暂停）。cs/guard.js 负责在
+// 捕获阶段吞掉，页面这两个监听器应该一次都收不到。
+window.__hashEvents = 0;
+window.addEventListener('hashchange', () => { window.__hashEvents++; });
+window.addEventListener('popstate', () => { window.__hashEvents++; });
 </script></body></html>`;
     setTimeout(() => {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -154,6 +160,7 @@ window.addEventListener('beforeunload', () => { window.__unloaded = true; });
       scrollY: window.scrollY,
       navType: performance.getEntriesByType('navigation')[0].type,
       unloaded: window.__unloaded,
+      hashEvents: window.__hashEvents,
       url: location.href,
     }));
     check(
@@ -163,6 +170,13 @@ window.addEventListener('beforeunload', () => { window.__unloaded = true; });
         && pageState.navType === 'navigate'
         && pageState.url === `${BASE}/pageX`,
       JSON.stringify(pageState),
+    );
+    // 关键回归断言（v0.3.1）：页面自己的 hashchange / popstate 监听器不能被惊动，
+    // 否则 SPA（直播站）会重新渲染、把播放器暂停。
+    check(
+      '场景2b 原页感知不到取消导航（无 popstate / hashchange）',
+      pageState.hashEvents === 0,
+      `hashEvents=${pageState.hashEvents}`,
     );
     if (newTab) await newTab.close().catch(() => {});
 

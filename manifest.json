@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Edge Better",
-  "version": "0.2.1",
+  "version": "0.3.1",
   "description": "书签在新标签页打开：自动覆盖空白新标签页，中键点击不再多开标签页，当前页绝不刷新。书签数据全程本地处理，可一键还原。",
   "permissions": [
     "bookmarks",
@@ -18,6 +18,20 @@
     "service_worker": "background.js",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "cs/guard.js",
+        "cs/zoom.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
   "options_page": "options.html",
   "action": {
     "default_title": "Edge Better",
